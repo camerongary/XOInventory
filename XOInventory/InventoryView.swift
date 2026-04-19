@@ -17,9 +17,15 @@ struct InventoryView: View {
         KeyPathComparator(\.name)
     ]
     @State private var selection: VM.ID?
-    @State private var showExporter = false
-    @State private var showPDFExporter = false
+    @State private var exportKind: ExportKind?
     @State private var selectedTab: Tab = .vms
+
+    /// Drives the single fileExporter. Using one exporter keyed on this enum
+    /// avoids SwiftUI's stacked-exporter bug where only the last one presents.
+    enum ExportKind: Identifiable {
+        case csv, pdf
+        var id: Self { self }
+    }
 
     enum Tab: String, CaseIterable, Identifiable {
         case vms = "VMs"
@@ -86,28 +92,39 @@ struct InventoryView: View {
             statusBar
         }
         .fileExporter(
-            isPresented: $showExporter,
-            document: CSVDocument(text: viewModel.csvRepresentation()),
-            contentType: .commaSeparatedText,
-            defaultFilename: "xcp-ng-inventory-\(dateString()).csv"
+            isPresented: Binding(
+                get: { exportKind != nil },
+                set: { if !$0 { exportKind = nil } }
+            ),
+            document: currentExportDocument,
+            contentType: exportKind == .pdf ? .pdf : .commaSeparatedText,
+            defaultFilename: exportKind == .pdf
+                ? "xcp-ng-inventory-\(dateString()).pdf"
+                : "xcp-ng-inventory-\(dateString()).csv"
         ) { result in
             if case .failure(let err) = result {
                 viewModel.errorMessage = err.localizedDescription
             }
+            exportKind = nil
         }
-        .fileExporter(
-            isPresented: $showPDFExporter,
-            document: PDFDocumentFile(data: PDFReport.build(
+    }
+
+    /// Build the document that matches the current exportKind.
+    /// Returns an empty CSV document when no export is in flight — SwiftUI
+    /// evaluates this property even when the exporter isn't presented, so it
+    /// must always return something valid.
+    private var currentExportDocument: ExportDocument {
+        switch exportKind {
+        case .pdf:
+            let data = PDFReport.build(
                 vms: viewModel.filteredVMs,
                 diskByVM: viewModel.totalDiskByVM,
                 hostDisplay: hostDisplay
-            )),
-            contentType: .pdf,
-            defaultFilename: "xcp-ng-inventory-\(dateString()).pdf"
-        ) { result in
-            if case .failure(let err) = result {
-                viewModel.errorMessage = err.localizedDescription
-            }
+            )
+            return ExportDocument(kind: .pdf, data: data)
+        case .csv, .none:
+            let text = viewModel.csvRepresentation()
+            return ExportDocument(kind: .csv, data: Data(text.utf8))
         }
     }
 
@@ -231,12 +248,12 @@ struct InventoryView: View {
 
             Menu {
                 Button {
-                    showExporter = true
+                    exportKind = .csv
                 } label: {
                     Label("Export as CSV…", systemImage: "tablecells")
                 }
                 Button {
-                    showPDFExporter = true
+                    exportKind = .pdf
                 } label: {
                     Label("Export as PDF…", systemImage: "doc.richtext")
                 }
@@ -395,34 +412,35 @@ struct PowerStatePill: View {
     }
 }
 
-// MARK: - CSV document
+// MARK: - Unified export document
+//
+// We use ONE FileDocument for both CSV and PDF exports. This lets us use a
+// single `.fileExporter` modifier and avoid a SwiftUI bug where stacking two
+// exporters on the same view causes one of them to silently never present.
 
-struct CSVDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.commaSeparatedText] }
-    var text: String
-    init(text: String) { self.text = text }
-    init(configuration: ReadConfiguration) throws {
-        if let data = configuration.file.regularFileContents,
-           let s = String(data: data, encoding: .utf8) {
-            self.text = s
-        } else {
-            self.text = ""
-        }
+struct ExportDocument: FileDocument {
+    enum Kind { case csv, pdf }
+
+    /// What types can be read back. We support both so a single type can
+    /// represent either export; `.fileExporter(contentType:)` decides what's
+    /// actually written this time.
+    static var readableContentTypes: [UTType] { [.commaSeparatedText, .pdf] }
+
+    let kind: Kind
+    let data: Data
+
+    init(kind: Kind, data: Data) {
+        self.kind = kind
+        self.data = data
     }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
-    }
-}
 
-// MARK: - PDF document
-
-struct PDFDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.pdf] }
-    var data: Data
-    init(data: Data) { self.data = data }
     init(configuration: ReadConfiguration) throws {
+        // Imported back in: pick a kind based on the file's UTI.
+        let uti = configuration.contentType
+        self.kind = (uti == .pdf) ? .pdf : .csv
         self.data = configuration.file.regularFileContents ?? Data()
     }
+
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
     }
