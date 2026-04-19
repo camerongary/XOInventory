@@ -296,25 +296,25 @@ struct InventoryView: View {
             TableColumn("vCPUs", value: \.cpus) { row in
                 Text(row.vm.cpuDisplay)
                     .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .width(min: 50, ideal: 60)
+            .width(min: 50, ideal: 55, max: 70)
 
             TableColumn("Memory", value: \.memoryBytes) { row in
                 Text(row.vm.memoryDisplay)
                     .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .width(min: 80, ideal: 100)
+            .width(min: 70, ideal: 80, max: 95)
 
             TableColumn("Disk", value: \.diskBytes) { row in
                 Text(row.diskBytes > 0
                      ? VM.byteFormatter.string(fromByteCount: row.diskBytes)
                      : "—")
                     .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .width(min: 80, ideal: 100)
+            .width(min: 70, ideal: 85, max: 100)
 
             TableColumn("OS") { row in
                 Text(row.vm.os ?? "—")
