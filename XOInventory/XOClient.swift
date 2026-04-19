@@ -55,6 +55,10 @@ actor XOClient {
     private let connection: XOConnection
     private let session: URLSession
 
+    /// Cached base URL once we've figured out whether this host speaks HTTPS or HTTP.
+    /// Nil until the first successful probe. Subsequent requests reuse this.
+    private var resolvedBaseURL: URL?
+
     init(connection: XOConnection) {
         self.connection = connection
         let config = URLSessionConfiguration.ephemeral
@@ -77,7 +81,7 @@ actor XOClient {
     /// Uses the `fields=` query param so XO returns full objects instead of href stubs.
     func fetchVMs() async throws -> [VM] {
         let fields = "uuid,name_label,name_description,power_state,CPUs,memory,mainIpAddress,addresses,os_version,$container,$VBDs"
-        var comps = try baseComponents(path: "/rest/v0/vms")
+        var comps = try await baseComponents(path: "/rest/v0/vms")
         comps.queryItems = [URLQueryItem(name: "fields", value: fields)]
         let url = try resolve(comps)
 
@@ -92,7 +96,7 @@ actor XOClient {
     /// Fetch all hosts (hypervisors) in the pool.
     func fetchHosts() async throws -> [Host] {
         let fields = "uuid,name_label,name_description,address,power_state,enabled,version,CPUs,memory,residentVmCount,resident_VMs"
-        var comps = try baseComponents(path: "/rest/v0/hosts")
+        var comps = try await baseComponents(path: "/rest/v0/hosts")
         comps.queryItems = [URLQueryItem(name: "fields", value: fields)]
         let url = try resolve(comps)
 
@@ -118,7 +122,7 @@ actor XOClient {
     /// XO exposes VDIs under /rest/v0/vms/{uuid}/vdis. If that endpoint isn't
     /// present on the running XO version, return 0 rather than failing the whole refresh.
     func fetchTotalDiskBytes(vmUUID: String) async -> Int64 {
-        var comps = (try? baseComponents(path: "/rest/v0/vms/\(vmUUID)/vdis")) ?? URLComponents()
+        var comps = (try? await baseComponents(path: "/rest/v0/vms/\(vmUUID)/vdis")) ?? URLComponents()
         comps.queryItems = [URLQueryItem(name: "fields", value: "uuid,name_label,size")]
         guard let url = try? resolve(comps) else { return 0 }
 
@@ -132,16 +136,83 @@ actor XOClient {
     }
 
     /// Cheap connectivity/auth check against the API root.
+    /// Tries HTTPS first; if HTTPS fails with a hard connection error (not auth,
+    /// not cert trust), silently falls back to HTTP. Caches the working scheme.
+    /// If the user explicitly typed a scheme, we use only that.
     func probe() async throws {
-        let comps = try baseComponents(path: "/rest/v0/")
-        let url = try resolve(comps)
-        _ = try await get(url)
+        if resolvedBaseURL != nil {
+            // Already resolved earlier in this client's lifetime. Just verify it still works.
+            let url = try apiRootURL()
+            _ = try await get(url)
+            return
+        }
+
+        if connection.hasExplicitScheme {
+            // User was explicit. Don't probe the other scheme.
+            guard let url = connection.url(scheme: "https") else {
+                throw XOClientError.invalidURL
+            }
+            let root = url.appendingPathComponent("rest/v0/")
+            _ = try await get(root)
+            resolvedBaseURL = url
+            return
+        }
+
+        // Try HTTPS first.
+        if let httpsBase = connection.url(scheme: "https") {
+            let httpsRoot = httpsBase.appendingPathComponent("rest/v0/")
+            do {
+                _ = try await get(httpsRoot)
+                resolvedBaseURL = httpsBase
+                return
+            } catch let XOClientError.transport(err) where Self.isConnectionRefusal(err) {
+                // HTTPS isn't listening. Try HTTP.
+            } catch {
+                // Any other error (401, cert trust, 404, etc.) is meaningful — surface it.
+                throw error
+            }
+        }
+
+        // Fall back to HTTP.
+        guard let httpBase = connection.url(scheme: "http") else {
+            throw XOClientError.invalidURL
+        }
+        let httpRoot = httpBase.appendingPathComponent("rest/v0/")
+        _ = try await get(httpRoot)
+        resolvedBaseURL = httpBase
+    }
+
+    /// True when the error is "TCP connection was refused" — the signal we use
+    /// to decide HTTPS is not listening on this host and we should try HTTP.
+    private static func isConnectionRefusal(_ error: Error) -> Bool {
+        let nserr = error as NSError
+        guard nserr.domain == NSURLErrorDomain else { return false }
+        switch nserr.code {
+        case NSURLErrorCannotConnectToHost,     // ECONNREFUSED
+             NSURLErrorCannotFindHost,          // defensive; shouldn't happen once ping works
+             NSURLErrorSecureConnectionFailed:  // no TLS stack at all on the other end
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Internals
 
-    private func baseComponents(path: String) throws -> URLComponents {
-        guard let base = connection.baseURL,
+    /// The resolved API base URL (scheme + host). Valid only after probe().
+    private func apiRootURL() throws -> URL {
+        guard let base = resolvedBaseURL else {
+            throw XOClientError.invalidURL
+        }
+        return base.appendingPathComponent("rest/v0/")
+    }
+
+    private func baseComponents(path: String) async throws -> URLComponents {
+        // Lazily resolve the scheme if a fetch method was called before probe().
+        if resolvedBaseURL == nil {
+            try await probe()
+        }
+        guard let base = resolvedBaseURL,
               var comps = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw XOClientError.invalidURL
         }

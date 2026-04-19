@@ -351,7 +351,7 @@ private struct AnyJSON: Decodable {
 /// User-entered connection details. The app never writes the token to disk —
 /// it is held in memory for the session only.
 struct XOConnection: Equatable {
-    var host: String = ""          // e.g. "xo.lan" or "10.0.0.5"
+    var host: String = ""          // e.g. "xo.lan" or "10.0.0.5" — may include scheme
     var token: String = ""
     var allowSelfSignedCert: Bool = true  // homelab default
 
@@ -361,16 +361,31 @@ struct XOConnection: Equatable {
         self.allowSelfSignedCert = allowSelfSignedCert
     }
 
-    var baseURL: URL? {
+    /// True when the user explicitly typed "http://" or "https://". When false,
+    /// the client is free to probe both schemes.
+    var hasExplicitScheme: Bool {
+        let t = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return t.hasPrefix("http://") || t.hasPrefix("https://")
+    }
+
+    /// Build a URL for this host with the given scheme. Used when probing both
+    /// schemes automatically. If the user already included a scheme, that wins.
+    func url(scheme: String) -> URL? {
         var trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return nil }
-        if !trimmed.hasPrefix("http://") && !trimmed.hasPrefix("https://") {
-            trimmed = "https://" + trimmed
+        if hasExplicitScheme {
+            // Respect what the user typed, ignore the requested scheme.
+            if trimmed.hasSuffix("/") { trimmed.removeLast() }
+            return URL(string: trimmed)
         }
-        // Strip trailing slash if present so we can append cleanly.
+        // Strip any leading "//" just in case.
+        while trimmed.hasPrefix("/") { trimmed.removeFirst() }
         if trimmed.hasSuffix("/") { trimmed.removeLast() }
-        return URL(string: trimmed)
+        return URL(string: "\(scheme)://\(trimmed)")
     }
+
+    /// The URL we default to when no probing has happened yet. HTTPS first.
+    var baseURL: URL? { url(scheme: "https") }
 
     var isValid: Bool {
         baseURL != nil && !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
