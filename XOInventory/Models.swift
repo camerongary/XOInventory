@@ -40,9 +40,20 @@ struct VM: Identifiable, Hashable, Decodable {
     }
 
     var ipDisplay: String {
+        // Prefer a v4 address if we have one. Some guests (Windows especially)
+        // report an IPv6 as the primary address, which is technically correct
+        // but unhelpful for admins looking at the table.
+        if let ip = mainIpAddress, !ip.isEmpty, Self.isIPv4(ip) { return ip }
+        if let v4 = otherIpAddresses.first(where: Self.isIPv4) { return v4 }
         if let ip = mainIpAddress, !ip.isEmpty { return ip }
         if let first = otherIpAddresses.first { return first }
         return "—"
+    }
+
+    /// Quick IPv4 heuristic — three dots, no colons. Good enough here; we
+    /// don't need full address parsing for display purposes.
+    private static func isIPv4(_ s: String) -> Bool {
+        !s.contains(":") && s.split(separator: ".").count == 4
     }
 
     static let byteFormatter: ByteCountFormatter = {
@@ -88,9 +99,9 @@ struct VM: Identifiable, Hashable, Decodable {
         mainIpAddress = try? c.decodeIfPresent(String.self, forKey: .mainIpAddress)
 
         // `addresses` is a dictionary like {"0/ip": "10.0.0.4", "0/ipv6/0": "..."}.
+        // Keep both v4 and v6 here — ipDisplay prefers v4 when picking one.
         if let addrDict = try? c.decodeIfPresent([String: String].self, forKey: .addresses) {
             otherIpAddresses = addrDict
-                .filter { !$0.key.contains("ipv6") }
                 .map { $0.value }
                 .filter { !$0.isEmpty }
                 .sorted()

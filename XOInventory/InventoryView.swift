@@ -291,7 +291,7 @@ struct InventoryView: View {
             TableColumn("IP Address", value: \.ip) { row in
                 Text(row.ip).monospaced()
             }
-            .width(min: 100, ideal: 140)
+            .width(min: 100, ideal: 140, max: 180)
 
             TableColumn("vCPUs", value: \.cpus) { row in
                 Text(row.vm.cpuDisplay)
@@ -316,7 +316,7 @@ struct InventoryView: View {
             }
             .width(min: 70, ideal: 85, max: 100)
 
-            TableColumn("OS") { row in
+            TableColumn("OS", value: \.osDisplay) { row in
                 Text(row.vm.os ?? "—")
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -387,6 +387,12 @@ struct VMRow: Identifiable {
     var cpus: Int { vm.cpus ?? 0 }
     var memoryBytes: Int64 { vm.memoryBytes ?? 0 }
     var isRunningInt: Int { vm.isRunning ? 1 : 0 }
+    /// Lowercased OS string for sort key. Empty goes to the end via trailing
+    /// Unicode character "~" which sorts after all regular OS names.
+    var osDisplay: String {
+        let raw = (vm.os ?? "").lowercased()
+        return raw.isEmpty ? "~" : raw
+    }
 }
 
 // MARK: - Power state pill
