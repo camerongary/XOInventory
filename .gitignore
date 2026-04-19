@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+
+# Xcode build artifacts
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# Swift Package Manager
+.build/
+Package.resolved
+.swiftpm/
+
+# User-specific state
+xcuserdata/
+*.xcuserstate
+*.moved-aside
+*.perspectivev3
+*.pbxuser
+*.mode1v3
+*.mode2v3
+
+# Signing / profiles
+*.p12
+*.provisionprofile
+
+# Fastlane / Instruments
+fastlane/report.xml
+fastlane/screenshots
+fastlane/test_output
+*.trace
+
+# Editor backups
+*.swp
+*~
