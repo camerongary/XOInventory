@@ -111,6 +111,12 @@ struct ConnectionView: View {
             ForEach(store.profiles) { profile in
                 ProfileRow(profile: profile)
                     .tag(profile.id)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(
+                        TapGesture(count: 2).onEnded {
+                            connect(profile)
+                        }
+                    )
                     .contextMenu {
                         Button("Connect") { connect(profile) }
                         Button("Edit…") { sheet = .edit(profile) }
