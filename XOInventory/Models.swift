@@ -74,8 +74,17 @@ struct VM: Identifiable, Hashable, Decodable {
         nameLabel = try c.decodeIfPresent(String.self, forKey: .nameLabel) ?? "(unnamed)"
         nameDescription = try c.decodeIfPresent(String.self, forKey: .nameDescription)
         powerState = try c.decodeIfPresent(String.self, forKey: .powerState) ?? "Unknown"
-        cpus = try? c.decodeIfPresent(Int.self, forKey: .cpus)
-        memoryBytes = try? c.decodeIfPresent(Int64.self, forKey: .memoryBytes)
+
+        // XO returns CPUs as either:
+        //   - a plain integer:       4
+        //   - a nested object:       { "number": 4, "max": 8 }
+        // Memory is either:
+        //   - a plain integer:       4294967296
+        //   - a nested object:       { "size": 4297039872, "dynamic": [...], "static": [...] }
+        // Handle both so we stay robust across XO versions.
+        cpus = Self.decodeIntOrObjectInt(c, key: .cpus, preferredObjectKeys: ["number", "max"])
+        memoryBytes = Self.decodeInt64OrObjectInt64(c, key: .memoryBytes, preferredObjectKeys: ["size"])
+
         mainIpAddress = try? c.decodeIfPresent(String.self, forKey: .mainIpAddress)
 
         // `addresses` is a dictionary like {"0/ip": "10.0.0.4", "0/ipv6/0": "..."}.
@@ -98,6 +107,65 @@ struct VM: Identifiable, Hashable, Decodable {
 
         host = try? c.decodeIfPresent(String.self, forKey: .host)
         vdiRefs = (try? c.decodeIfPresent([String].self, forKey: .vdiRefs)) ?? []
+    }
+
+    // MARK: - Tolerant decoding helpers
+
+    /// Decodes a field that may be a plain Int or a nested object containing
+    /// one of the given keys. Works even when the object has mixed-type values
+    /// (like XO's `memory` which mixes ints and arrays).
+    private static func decodeIntOrObjectInt(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        key: CodingKeys,
+        preferredObjectKeys: [String]
+    ) -> Int? {
+        if let n = try? container.decodeIfPresent(Int.self, forKey: key) {
+            return n
+        }
+        if let d = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return Int(d)
+        }
+        // Object case: open a nested container and try each preferred key.
+        guard let nested = try? container.nestedContainer(
+            keyedBy: DynamicKey.self, forKey: key) else { return nil }
+        for name in preferredObjectKeys {
+            guard let k = DynamicKey(stringValue: name) else { continue }
+            if let v = try? nested.decodeIfPresent(Int.self, forKey: k) { return v }
+            if let v = try? nested.decodeIfPresent(Double.self, forKey: k) { return Int(v) }
+        }
+        return nil
+    }
+
+    /// Same idea for Int64 (memory in bytes).
+    private static func decodeInt64OrObjectInt64(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        key: CodingKeys,
+        preferredObjectKeys: [String]
+    ) -> Int64? {
+        if let n = try? container.decodeIfPresent(Int64.self, forKey: key) {
+            return n
+        }
+        if let d = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return Int64(d)
+        }
+        guard let nested = try? container.nestedContainer(
+            keyedBy: DynamicKey.self, forKey: key) else { return nil }
+        for name in preferredObjectKeys {
+            guard let k = DynamicKey(stringValue: name) else { continue }
+            if let v = try? nested.decodeIfPresent(Int64.self, forKey: k) { return v }
+            if let v = try? nested.decodeIfPresent(Double.self, forKey: k) { return Int64(v) }
+        }
+        return nil
+    }
+
+    /// Arbitrary-string CodingKey so we can peek at nested JSON object keys.
+    private struct DynamicKey: CodingKey {
+        var stringValue: String
+        var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) {
+            self.stringValue = String(intValue)
+        }
     }
 
     // For previews / manual init
