@@ -95,7 +95,7 @@ actor XOClient {
 
     /// Fetch all hosts (hypervisors) in the pool.
     func fetchHosts() async throws -> [Host] {
-        let fields = "uuid,name_label,name_description,address,power_state,enabled,version,CPUs,memory,residentVmCount,resident_VMs"
+        let fields = "uuid,name_label,name_description,address,power_state,enabled,version,CPUs,memory"
         var comps = try await baseComponents(path: "/rest/v0/hosts")
         comps.queryItems = [URLQueryItem(name: "fields", value: fields)]
         let url = try resolve(comps)
@@ -103,6 +103,21 @@ actor XOClient {
         let data = try await get(url)
         do {
             return try JSONDecoder().decode([Host].self, from: data)
+        } catch {
+            throw XOClientError.decoding(error)
+        }
+    }
+
+    /// Fetch all storage repositories. Used to compute per-host disk totals.
+    func fetchSRs() async throws -> [SR] {
+        let fields = "uuid,name_label,SR_type,shared,size,physical_usage,$container"
+        var comps = try await baseComponents(path: "/rest/v0/srs")
+        comps.queryItems = [URLQueryItem(name: "fields", value: fields)]
+        let url = try resolve(comps)
+
+        let data = try await get(url)
+        do {
+            return try JSONDecoder().decode([SR].self, from: data)
         } catch {
             throw XOClientError.decoding(error)
         }

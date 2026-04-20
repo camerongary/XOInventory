@@ -230,7 +230,8 @@ struct Host: Identifiable, Hashable, Decodable {
     let cpuSpeedMHz: Double?
     let memoryTotalBytes: Int64?
     let memoryUsageBytes: Int64?
-    let residentVMCount: Int?         // VMs currently running on this host
+    // Note: VMs-per-host is computed by the view model from the VM list,
+    // because some XO versions don't include it on the host record.
 
     var id: String { uuid }
 
@@ -268,8 +269,6 @@ struct Host: Identifiable, Hashable, Decodable {
         case version
         case cpus = "CPUs"
         case memory
-        case residentVmCount = "residentVmCount"
-        case resident_VMs
     }
 
     init(from decoder: Decoder) throws {
@@ -302,23 +301,13 @@ struct Host: Identifiable, Hashable, Decodable {
             memoryTotalBytes = nil
             memoryUsageBytes = nil
         }
-
-        // Number of VMs running on this host. XO returns residentVmCount directly in newer
-        // versions; on older builds, fall back to counting the resident_VMs array.
-        if let n = try? c.decodeIfPresent(Int.self, forKey: .residentVmCount) {
-            residentVMCount = n
-        } else if let arr = try? c.decodeIfPresent([String].self, forKey: .resident_VMs) {
-            residentVMCount = arr.count
-        } else {
-            residentVMCount = nil
-        }
     }
 
     // Preview / manual init
     init(uuid: String, nameLabel: String, address: String?,
          cpuCount: Int?, memoryTotalBytes: Int64?, memoryUsageBytes: Int64?,
          version: String? = nil, cpuModel: String? = nil,
-         cpuSpeedMHz: Double? = nil, residentVMCount: Int? = nil,
+         cpuSpeedMHz: Double? = nil,
          powerState: String? = "Running", enabled: Bool? = true,
          nameDescription: String? = nil) {
         self.uuid = uuid
@@ -333,7 +322,6 @@ struct Host: Identifiable, Hashable, Decodable {
         self.cpuSpeedMHz = cpuSpeedMHz
         self.memoryTotalBytes = memoryTotalBytes
         self.memoryUsageBytes = memoryUsageBytes
-        self.residentVMCount = residentVMCount
     }
 }
 
@@ -354,6 +342,53 @@ private struct AnyJSON: Decodable {
             value = v.map { $0.value }
         }
         else { value = NSNull() }
+    }
+}
+
+// MARK: - SR (Storage Repository)
+
+/// An XCP-NG storage repository. Returned from /rest/v0/srs.
+/// Local SRs have $container set to a host UUID; shared SRs have $container
+/// set to the pool UUID.
+struct SR: Identifiable, Hashable, Decodable {
+    let uuid: String
+    let nameLabel: String
+    let srType: String?          // "udev", "ext", "nfs", "iso", "lvm", etc.
+    let shared: Bool
+    let size: Int64              // total capacity in bytes. -1 means "unknown"
+    let physicalUsage: Int64     // used bytes
+    let container: String        // host UUID (local) or pool UUID (shared)
+
+    var id: String { uuid }
+
+    /// SRs we want to exclude from disk totals: removable drives, ISO stores.
+    /// They're real SRs but don't represent usable VM storage.
+    var isUsableStorage: Bool {
+        switch srType?.lowercased() {
+        case "udev", "iso": return false     // removable devices, ISO stores
+        default: return size > 0             // size == -1 means XO doesn't know
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case uuid
+        case nameLabel = "name_label"
+        case srType = "SR_type"
+        case shared
+        case size
+        case physicalUsage = "physical_usage"
+        case container = "$container"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uuid = try c.decode(String.self, forKey: .uuid)
+        nameLabel = try c.decodeIfPresent(String.self, forKey: .nameLabel) ?? "(unnamed)"
+        srType = try? c.decodeIfPresent(String.self, forKey: .srType)
+        shared = (try? c.decodeIfPresent(Bool.self, forKey: .shared)) ?? false
+        size = (try? c.decodeIfPresent(Int64.self, forKey: .size)) ?? 0
+        physicalUsage = (try? c.decodeIfPresent(Int64.self, forKey: .physicalUsage)) ?? 0
+        container = try c.decode(String.self, forKey: .container)
     }
 }
 

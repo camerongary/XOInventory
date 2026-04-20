@@ -11,6 +11,7 @@ import SwiftUI
 final class InventoryViewModel: ObservableObject {
     @Published var vms: [VM] = []
     @Published var hosts: [Host] = []
+    @Published var srs: [SR] = []
     @Published var totalDiskByVM: [String: Int64] = [:]  // uuid -> bytes
     @Published var isLoading: Bool = false
     @Published var statusMessage: String = ""
@@ -29,6 +30,68 @@ final class InventoryViewModel: ObservableObject {
     /// Map host UUID → host name, for displaying the VM's host in labels.
     var hostNamesByUUID: [String: String] {
         Dictionary(uniqueKeysWithValues: hosts.map { ($0.uuid, $0.nameLabel) })
+    }
+
+    /// Map host UUID → count of VMs residing on that host, computed from the
+    /// VM list. Includes all VMs (running and halted) whose `$container` is
+    /// a host UUID.
+    var vmCountByHost: [String: Int] {
+        var counts: [String: Int] = [:]
+        let hostUUIDs = Set(hosts.map(\.uuid))
+        for vm in vms {
+            guard let container = vm.host, hostUUIDs.contains(container) else { continue }
+            counts[container, default: 0] += 1
+        }
+        return counts
+    }
+
+    /// Disk info per host: local = sum of local SRs attached to this host,
+    /// total = local + shared SRs in the pool. Values are in bytes.
+    struct HostDisk {
+        var localTotalBytes: Int64 = 0
+        var localUsedBytes: Int64 = 0
+        var sharedTotalBytes: Int64 = 0
+        var sharedUsedBytes: Int64 = 0
+
+        var totalBytes: Int64 { localTotalBytes + sharedTotalBytes }
+        var totalUsedBytes: Int64 { localUsedBytes + sharedUsedBytes }
+
+        /// 0...1 fraction. Nil when total is 0 or unknown.
+        var usageFraction: Double? {
+            guard totalBytes > 0 else { return nil }
+            return min(1.0, Double(totalUsedBytes) / Double(totalBytes))
+        }
+    }
+
+    /// Compute per-host disk rollup from the SR list. Local SRs attach to
+    /// exactly one host via $container; shared SRs attach to the pool, so
+    /// they contribute to every host's "total" number.
+    var diskByHost: [String: HostDisk] {
+        let hostUUIDs = Set(hosts.map(\.uuid))
+        var sharedTotal: Int64 = 0
+        var sharedUsed: Int64 = 0
+        var perHost: [String: HostDisk] = [:]
+
+        for sr in srs where sr.isUsableStorage {
+            if sr.shared {
+                sharedTotal += sr.size
+                sharedUsed += sr.physicalUsage
+            } else if hostUUIDs.contains(sr.container) {
+                var d = perHost[sr.container, default: HostDisk()]
+                d.localTotalBytes += sr.size
+                d.localUsedBytes += sr.physicalUsage
+                perHost[sr.container] = d
+            }
+        }
+
+        // Fold shared totals into every host's rollup.
+        for uuid in hostUUIDs {
+            var d = perHost[uuid, default: HostDisk()]
+            d.sharedTotalBytes = sharedTotal
+            d.sharedUsedBytes = sharedUsed
+            perHost[uuid] = d
+        }
+        return perHost
     }
 
     func connect(using connection: XOConnection) async {
@@ -54,6 +117,7 @@ final class InventoryViewModel: ObservableObject {
         client = nil
         vms = []
         hosts = []
+        srs = []
         totalDiskByVM = [:]
         hostFilter = nil
         statusMessage = ""
@@ -64,18 +128,20 @@ final class InventoryViewModel: ObservableObject {
         guard let client else { return }
         errorMessage = nil
         isLoading = true
-        statusMessage = "Fetching hosts and VMs…"
+        statusMessage = "Fetching hosts, VMs, and storage…"
         defer { isLoading = false }
 
         do {
-            // Hosts are small; fetch in parallel with VMs.
+            // Three fetches in parallel — they don't depend on each other.
             async let hostsTask = client.fetchHosts()
             async let vmsTask = client.fetchVMs()
-            let (fetchedHosts, fetched) = try await (hostsTask, vmsTask)
+            async let srsTask = client.fetchSRs()
+            let (fetchedHosts, fetched, fetchedSRs) = try await (hostsTask, vmsTask, srsTask)
 
             self.hosts = fetchedHosts.sorted {
                 $0.nameLabel.localizedCaseInsensitiveCompare($1.nameLabel) == .orderedAscending
             }
+            self.srs = fetchedSRs
 
             // Sort: running first, then by name.
             self.vms = fetched.sorted { lhs, rhs in
@@ -88,7 +154,7 @@ final class InventoryViewModel: ObservableObject {
                 self.hostFilter = nil
             }
 
-            statusMessage = "Loaded \(fetched.count) VM\(fetched.count == 1 ? "" : "s"). Summing disks…"
+            statusMessage = "Loaded \(fetched.count) VM\(fetched.count == 1 ? "" : "s"). Summing VM disks…"
             await loadDiskSizes(for: fetched, using: client)
             lastRefreshed = Date()
             statusMessage = "Loaded \(self.hosts.count) host\(self.hosts.count == 1 ? "" : "s"), \(fetched.count) VM\(fetched.count == 1 ? "" : "s")."

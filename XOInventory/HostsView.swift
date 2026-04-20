@@ -31,7 +31,11 @@ struct HostsView: View {
                 .frame(minWidth: 560)
 
             if let host = selectedHost {
-                HostDetailView(host: host, vmCount: viewModel.vms.filter { $0.host == host.uuid }.count)
+                HostDetailView(
+                    host: host,
+                    vmCount: viewModel.vmCountByHost[host.uuid] ?? 0,
+                    disk: viewModel.diskByHost[host.uuid]
+                )
                     .frame(minWidth: 280, idealWidth: 340)
             } else {
                 VStack {
@@ -48,7 +52,11 @@ struct HostsView: View {
     // MARK: - Table
 
     private var table: some View {
-        Table(sortedHosts, selection: $selection, sortOrder: $sortOrder) {
+        // Snapshot these once per render so table closures don't recompute.
+        let vmCounts = viewModel.vmCountByHost
+        let diskMap = viewModel.diskByHost
+
+        return Table(sortedHosts, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.nameLabel) { host in
                 Text(host.nameLabel).fontWeight(.semibold)
             }
@@ -70,14 +78,19 @@ struct HostsView: View {
             TableColumn("Memory") { host in
                 HostMemoryCell(host: host)
             }
-            .width(min: 140, ideal: 180)
+            .width(min: 140, ideal: 180, max: 220)
+
+            TableColumn("Disk") { host in
+                HostDiskCell(disk: diskMap[host.uuid])
+            }
+            .width(min: 140, ideal: 180, max: 220)
 
             TableColumn("VMs") { host in
-                Text(host.residentVMCount.map(String.init) ?? "—")
+                Text("\(vmCounts[host.uuid] ?? 0)")
                     .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .width(min: 50, ideal: 60)
+            .width(min: 50, ideal: 55, max: 70)
 
             TableColumn("Version") { host in
                 Text(host.version ?? "—")
@@ -127,11 +140,65 @@ private struct HostMemoryCell: View {
     }
 }
 
+// MARK: - Disk cell with bar
+
+/// Displays Local/Total usage for a host. If there are no shared SRs, the
+/// label drops the "Local / Total" distinction and just shows one pair.
+private struct HostDiskCell: View {
+    let disk: InventoryViewModel.HostDisk?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(displayText)
+                .font(.callout)
+                .monospacedDigit()
+                .lineLimit(1)
+
+            if let fraction = disk?.usageFraction {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.secondary.opacity(0.18))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(barColor(for: fraction))
+                            .frame(width: geo.size.width * CGFloat(fraction))
+                    }
+                }
+                .frame(height: 4)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// When shared storage exists, show "local / total". When all storage is
+    /// local (or all shared), show just one used / total pair.
+    private var displayText: String {
+        guard let d = disk, d.totalBytes > 0 else { return "—" }
+        let fmt = VM.byteFormatter
+        let hasLocal = d.localTotalBytes > 0
+        let hasShared = d.sharedTotalBytes > 0
+
+        if hasLocal && hasShared {
+            return "\(fmt.string(fromByteCount: d.localTotalBytes)) / \(fmt.string(fromByteCount: d.totalBytes))"
+        }
+        return "\(fmt.string(fromByteCount: d.totalUsedBytes)) / \(fmt.string(fromByteCount: d.totalBytes))"
+    }
+
+    private func barColor(for fraction: Double) -> Color {
+        switch fraction {
+        case ..<0.7:  return .green
+        case ..<0.9:  return .orange
+        default:      return .red
+        }
+    }
+}
+
 // MARK: - Detail pane
 
 struct HostDetailView: View {
     let host: Host
     let vmCount: Int
+    let disk: InventoryViewModel.HostDisk?
 
     var body: some View {
         ScrollView {
@@ -164,6 +231,25 @@ struct HostDetailView: View {
                     }
                 }
 
+                if let d = disk, d.totalBytes > 0 {
+                    section("Storage") {
+                        let fmt = VM.byteFormatter
+                        if d.localTotalBytes > 0 {
+                            row("Local",
+                                "\(fmt.string(fromByteCount: d.localUsedBytes)) of \(fmt.string(fromByteCount: d.localTotalBytes))")
+                        }
+                        if d.sharedTotalBytes > 0 {
+                            row("Shared (pool)",
+                                "\(fmt.string(fromByteCount: d.sharedUsedBytes)) of \(fmt.string(fromByteCount: d.sharedTotalBytes))")
+                        }
+                        row("Total Available",
+                            fmt.string(fromByteCount: d.totalBytes))
+                        if let frac = d.usageFraction {
+                            row("Total Used", String(format: "%.0f%%", frac * 100))
+                        }
+                    }
+                }
+
                 section("Network") {
                     row("Address", host.address ?? "—", mono: true, selectable: true)
                 }
@@ -174,9 +260,7 @@ struct HostDetailView: View {
                         row("Scheduling", enabled ? "Enabled" : "Disabled")
                     }
                     row("Version", host.version ?? "—")
-                    row("Resident VMs",
-                        host.residentVMCount.map(String.init)
-                            ?? (vmCount > 0 ? "\(vmCount)" : "—"))
+                    row("Resident VMs", "\(vmCount)")
                 }
 
                 section("System") {
