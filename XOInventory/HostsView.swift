@@ -142,8 +142,8 @@ private struct HostMemoryCell: View {
 
 // MARK: - Disk cell with bar
 
-/// Displays Local/Total usage for a host. If there are no shared SRs, the
-/// label drops the "Local / Total" distinction and just shows one pair.
+/// Displays local SR usage for a host. Shared/pool SRs aren't counted here —
+/// see the detail pane for the full breakdown.
 private struct HostDiskCell: View {
     let disk: InventoryViewModel.HostDisk?
 
@@ -154,7 +154,7 @@ private struct HostDiskCell: View {
                 .monospacedDigit()
                 .lineLimit(1)
 
-            if let fraction = disk?.usageFraction {
+            if let fraction = localFraction {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2)
@@ -170,18 +170,16 @@ private struct HostDiskCell: View {
         .padding(.vertical, 2)
     }
 
-    /// When shared storage exists, show "local / total". When all storage is
-    /// local (or all shared), show just one used / total pair.
     private var displayText: String {
-        guard let d = disk, d.totalBytes > 0 else { return "—" }
+        guard let d = disk, d.localTotalBytes > 0 else { return "—" }
         let fmt = VM.byteFormatter
-        let hasLocal = d.localTotalBytes > 0
-        let hasShared = d.sharedTotalBytes > 0
+        return "\(fmt.string(fromByteCount: d.localUsedBytes)) / \(fmt.string(fromByteCount: d.localTotalBytes))"
+    }
 
-        if hasLocal && hasShared {
-            return "\(fmt.string(fromByteCount: d.localTotalBytes)) / \(fmt.string(fromByteCount: d.totalBytes))"
-        }
-        return "\(fmt.string(fromByteCount: d.totalUsedBytes)) / \(fmt.string(fromByteCount: d.totalBytes))"
+    /// 0...1 usage fraction of local SRs. Nil when the host has no local storage.
+    private var localFraction: Double? {
+        guard let d = disk, d.localTotalBytes > 0 else { return nil }
+        return min(1.0, Double(d.localUsedBytes) / Double(d.localTotalBytes))
     }
 
     private func barColor(for fraction: Double) -> Color {
