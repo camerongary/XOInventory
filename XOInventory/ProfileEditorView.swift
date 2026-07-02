@@ -32,6 +32,7 @@ struct ProfileEditorView: View {
     @State private var allowSelfSigned: Bool = true
     @State private var tokenPlaceholder: String = "Paste token"
     @State private var testState: TestState = .idle
+    @State private var showTokenHelp = false
 
     enum TestState: Equatable {
         case idle
@@ -74,7 +75,20 @@ struct ProfileEditorView: View {
                         .disableAutocorrection(true)
                 }
 
-                field(label: "Authentication Token") {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("Authentication Token")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            showTokenHelp = true
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("How to get an authentication token")
+                    }
                     SecureField(tokenPlaceholder, text: $token)
                         .textFieldStyle(.roundedBorder)
                     if isEdit {
@@ -138,8 +152,11 @@ struct ProfileEditorView: View {
             }
             .padding()
         }
-        .frame(width: 480, height: 440)
+        .frame(width: 480, height: 460)
         .onAppear(perform: populate)
+        .sheet(isPresented: $showTokenHelp) {
+            TokenHelpView()
+        }
     }
 
     /// Test is allowed when host is set AND either a token was typed, or we're

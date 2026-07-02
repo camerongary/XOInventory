@@ -16,9 +16,10 @@ struct InventoryView: View {
         KeyPathComparator(\.isRunningInt, order: .reverse),
         KeyPathComparator(\.name)
     ]
-    @State private var selection: VM.ID?
+    @State private var selection = Set<VM.ID>()
     @State private var exportKind: ExportKind?
-    @State private var selectedTab: Tab = .vms
+    @AppStorage("XOInventory.selectedTab") private var selectedTab: Tab = .vms
+    @FocusState private var searchFocused: Bool
 
     /// Drives the single fileExporter. Using one exporter keyed on this enum
     /// avoids SwiftUI's stacked-exporter bug where only the last one presents.
@@ -54,8 +55,9 @@ struct InventoryView: View {
         return filtered.sorted(using: sortOrder)
     }
 
+    /// Detail pane shows a VM only when exactly one row is selected.
     private var selectedVM: VM? {
-        guard let id = selection else { return nil }
+        guard selection.count == 1, let id = selection.first else { return nil }
         return viewModel.vms.first { $0.uuid == id }
     }
 
@@ -106,6 +108,29 @@ struct InventoryView: View {
                 viewModel.errorMessage = err.localizedDescription
             }
             exportKind = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .refreshInventory)) { _ in
+            guard !viewModel.isLoading else { return }
+            Task { await viewModel.refresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportCSV)) { _ in
+            guard !viewModel.vms.isEmpty else { return }
+            exportKind = .csv
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .exportPDF)) { _ in
+            guard !viewModel.vms.isEmpty else { return }
+            exportKind = .pdf
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .selectVMsTab)) { _ in
+            selectedTab = .vms
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .selectHostsTab)) { _ in
+            selectedTab = .hosts
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .focusSearch)) { _ in
+            // Find always means the VM search field; switch tabs if needed.
+            selectedTab = .vms
+            searchFocused = true
         }
     }
 
@@ -206,6 +231,7 @@ struct InventoryView: View {
 
             TextField("Search name, IP, OS…", text: $search)
                 .textFieldStyle(.roundedBorder)
+                .focused($searchFocused)
                 .frame(maxWidth: 260)
 
             Spacer()
@@ -238,13 +264,14 @@ struct InventoryView: View {
 
             Spacer()
 
+            // ⌘R lives on the View → Refresh menu item; a duplicate shortcut
+            // here would conflict with it.
             Button {
                 Task { await viewModel.refresh() }
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .disabled(viewModel.isLoading)
-            .keyboardShortcut("r", modifiers: .command)
 
             Menu {
                 Button {
@@ -324,6 +351,26 @@ struct InventoryView: View {
             }
             .width(min: 100, ideal: 160)
         }
+        .onCopyCommand(perform: copySelection)
+    }
+
+    /// ⌘C on the table: copy the selected rows as tab-separated text, one line
+    /// per VM, in the current sort order. Pastes cleanly into spreadsheets.
+    private func copySelection() -> [NSItemProvider] {
+        let selected = rows.filter { selection.contains($0.id) }
+        guard !selected.isEmpty else { return [] }
+        let tsv = selected.map { row in
+            [
+                row.name,
+                row.powerState,
+                row.ip,
+                row.vm.cpuDisplay,
+                row.vm.memoryDisplay,
+                row.diskBytes > 0 ? VM.byteFormatter.string(fromByteCount: row.diskBytes) : "—",
+                row.vm.os ?? "—"
+            ].joined(separator: "\t")
+        }.joined(separator: "\n")
+        return [NSItemProvider(object: tsv as NSString)]
     }
 
     // MARK: - Status bar

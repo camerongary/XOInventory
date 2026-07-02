@@ -17,7 +17,19 @@ final class InventoryViewModel: ObservableObject {
     @Published var statusMessage: String = ""
     @Published var errorMessage: String?
     @Published var lastRefreshed: Date?
-    @Published var hostFilter: String? = nil              // host UUID, or nil for "all"
+
+    /// Host UUID, or nil for "all". Persisted across launches; refresh() prunes
+    /// it if the stored host no longer exists on the connected XO instance.
+    @Published var hostFilter: String? = UserDefaults.standard.string(forKey: hostFilterKey) {
+        didSet {
+            if let f = hostFilter {
+                UserDefaults.standard.set(f, forKey: Self.hostFilterKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.hostFilterKey)
+            }
+        }
+    }
+    private static let hostFilterKey = "XOInventory.hostFilter"
 
     private var client: XOClient?
 
@@ -119,7 +131,8 @@ final class InventoryViewModel: ObservableObject {
         hosts = []
         srs = []
         totalDiskByVM = [:]
-        hostFilter = nil
+        // hostFilter is intentionally kept: reconnecting to the same XO instance
+        // restores it, and refresh() prunes it if the host doesn't exist.
         statusMessage = ""
         lastRefreshed = nil
     }

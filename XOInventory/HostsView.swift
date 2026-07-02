@@ -11,13 +11,14 @@ import SwiftUI
 struct HostsView: View {
     @ObservedObject var viewModel: InventoryViewModel
 
-    @State private var selection: Host.ID?
+    @State private var selection = Set<Host.ID>()
     @State private var sortOrder: [KeyPathComparator<Host>] = [
         KeyPathComparator(\.nameLabel)
     ]
 
+    /// Detail pane shows a host only when exactly one row is selected.
     private var selectedHost: Host? {
-        guard let id = selection else { return nil }
+        guard selection.count == 1, let id = selection.first else { return nil }
         return viewModel.hosts.first { $0.uuid == id }
     }
 
@@ -99,6 +100,25 @@ struct HostsView: View {
             }
             .width(min: 70, ideal: 100)
         }
+        .onCopyCommand(perform: copySelection)
+    }
+
+    /// ⌘C: copy selected hosts as tab-separated text in the current sort order.
+    private func copySelection() -> [NSItemProvider] {
+        let vmCounts = viewModel.vmCountByHost
+        let selected = sortedHosts.filter { selection.contains($0.id) }
+        guard !selected.isEmpty else { return [] }
+        let tsv = selected.map { host in
+            [
+                host.nameLabel,
+                host.address ?? "—",
+                host.cpuDisplay,
+                "\(host.memoryUsageDisplay) / \(host.memoryTotalDisplay)",
+                "\(vmCounts[host.uuid] ?? 0)",
+                host.version ?? "—"
+            ].joined(separator: "\t")
+        }.joined(separator: "\n")
+        return [NSItemProvider(object: tsv as NSString)]
     }
 }
 

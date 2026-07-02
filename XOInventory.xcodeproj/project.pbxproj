@@ -15,13 +15,13 @@
 		A00000000000000000000106 /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* ConnectionView.swift */; };
 		A00000000000000000000107 /* InventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* InventoryView.swift */; };
 		A00000000000000000000108 /* VMDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* VMDetailView.swift */; };
+		A00000000000000000000109 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* Assets.xcassets */; };
+		A00000000000000000000110 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000010 /* Preview Assets.xcassets */; };
 		A00000000000000000000111 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* Keychain.swift */; };
 		A00000000000000000000112 /* HostProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* HostProfile.swift */; };
 		A00000000000000000000113 /* ProfileEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* ProfileEditorView.swift */; };
 		A00000000000000000000114 /* PDFReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* PDFReport.swift */; };
 		A00000000000000000000115 /* HostsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* HostsView.swift */; };
-		A00000000000000000000109 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* Assets.xcassets */; };
-		A00000000000000000000110 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000010 /* Preview Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -104,6 +104,25 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXLegacyTarget section */
+		7E6556E72FD5EF5A0080CBB6 /* Remote Build (Mini) */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(CONFIGURATION)";
+			buildConfigurationList = 7E6556EA2FD5EF5B0080CBB6 /* Build configuration list for PBXLegacyTarget "Remote Build (Mini)" */;
+			buildPhases = (
+			);
+			buildToolPath = "/Users/cameron/Projects/XOInventory_v2/remote-build.sh";
+			buildWorkingDirectory = /Users/cameron/Projects/XOInventory_v2;
+			dependencies = (
+			);
+			name = "Remote Build (Mini)";
+			packageProductDependencies = (
+			);
+			passBuildSettingsInEnvironment = 1;
+			productName = "Remote Build (Mini)";
+		};
+/* End PBXLegacyTarget section */
+
 /* Begin PBXNativeTarget section */
 		A00000000000000000000400 /* XOInventory */ = {
 			isa = PBXNativeTarget;
@@ -132,6 +151,9 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					7E6556E72FD5EF5A0080CBB6 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 					A00000000000000000000400 = {
 						CreatedOnToolsVersion = 15.0;
 					};
@@ -151,6 +173,7 @@
 			projectRoot = "";
 			targets = (
 				A00000000000000000000400 /* XOInventory */,
+				7E6556E72FD5EF5A0080CBB6 /* Remote Build (Mini) */,
 			);
 		};
 /* End PBXProject section */
@@ -191,6 +214,95 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		7E6556E82FD5EF5B0080CBB6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUGGING_SYMBOLS = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = C5L8TGSVLU;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		7E6556E92FD5EF5B0080CBB6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = C5L8TGSVLU;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		A00000000000000000000701 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = XOInventory/XOInventory.entitlements;
+				DEVELOPMENT_TEAM = C5L8TGSVLU;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"XOInventory/Preview Content\"";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = XOInventory/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "XCP-NG Inventory";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.camerongary.XOInventory;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A00000000000000000000702 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = XOInventory/XOInventory.entitlements;
+				DEVELOPMENT_TEAM = C5L8TGSVLU;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"XOInventory/Preview Content\"";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = XOInventory/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "XCP-NG Inventory";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.camerongary.XOInventory;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		A00000000000000000000901 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -309,67 +421,18 @@
 			};
 			name = Release;
 		};
-		A00000000000000000000701 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = XOInventory/XOInventory.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"XOInventory/Preview Content\"";
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "XCP-NG Inventory";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.camerongary.XOInventory;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		A00000000000000000000702 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = XOInventory/XOInventory.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"XOInventory/Preview Content\"";
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "XCP-NG Inventory";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.camerongary.XOInventory;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		7E6556EA2FD5EF5B0080CBB6 /* Build configuration list for PBXLegacyTarget "Remote Build (Mini)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E6556E82FD5EF5B0080CBB6 /* Debug */,
+				7E6556E92FD5EF5B0080CBB6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		A00000000000000000000700 /* Build configuration list for PBXNativeTarget "XOInventory" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
