@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/icon.png" width="128" alt="XOInventory icon">
+</p>
+
 # XOInventory
 
 A macOS SwiftUI app that inventories VMs and hosts on an XCP-NG cluster via
